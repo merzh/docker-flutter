@@ -1,22 +1,25 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
-ENV UID=1000
+ENV UID2=1000
 ENV GID=1000
 ENV USER="developer"
-ENV JAVA_VERSION="8"
-ENV ANDROID_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip"
-ENV ANDROID_VERSION="29"
-ENV ANDROID_BUILD_TOOLS_VERSION="30.0.2"
+ENV JAVA_VERSION="17"
+ENV ANDROID_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+ENV ANDROID_VERSION="34"
+ENV ANDROID_BUILD_TOOLS_VERSION="34.0.0"
 ENV ANDROID_ARCHITECTURE="x86_64"
 ENV ANDROID_SDK_ROOT="/home/$USER/android"
 ENV FLUTTER_CHANNEL="stable"
-ENV FLUTTER_VERSION="3.3.4"
-ENV FLUTTER_URL="https://storage.googleapis.com/flutter_infra/releases/$FLUTTER_CHANNEL/linux/flutter_linux_$FLUTTER_VERSION-$FLUTTER_CHANNEL.tar.xz"
+ENV FLUTTER_VERSION="3.16.7"
+ENV FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/$FLUTTER_CHANNEL/linux/flutter_linux_$FLUTTER_VERSION-$FLUTTER_CHANNEL.tar.xz"
 ENV FLUTTER_HOME="/home/$USER/flutter"
 ENV FLUTTER_WEB_PORT="8090"
 ENV FLUTTER_DEBUG_PORT="42000"
 ENV FLUTTER_EMULATOR_NAME="flutter_emulator"
 ENV PATH="$ANDROID_SDK_ROOT/cmdline-tools/tools/bin:$ANDROID_SDK_ROOT/emulator:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/platforms:$FLUTTER_HOME/bin:$PATH"
+
+ENV PATH $PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_SDK_ROOT/build-tools/$ANDROID_BUILD_TOOLS_VERSION:$ANT_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin
+ENV PATH $PATH:$ANDROID_SDK_ROOT/cmdline-tools/tools/bin:$ANDROID_SDK_ROOT/cmdline-tools/tools/lib:$FLUTTER_HOME/bin
 
 # install all dependencies
 ENV DEBIAN_FRONTEND="noninteractive"
@@ -24,11 +27,15 @@ RUN apt-get update \
   && apt-get install --yes --no-install-recommends openjdk-$JAVA_VERSION-jdk curl unzip sed git bash xz-utils libglvnd0 ssh xauth x11-xserver-utils libpulse0 libxcomposite1 libgl1-mesa-glx sudo \
   && rm -rf /var/lib/{apt,dpkg,cache,log}
 
+RUN apt-get --yes --no-install-recommends install clang cmake git ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
 # create user
 RUN groupadd --gid $GID $USER \
-  && useradd -s /bin/bash --uid $UID --gid $GID -m $USER \
+  && useradd -s /bin/bash --uid $UID2 --gid $GID -m $USER \
   && echo $USER ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USER \
   && chmod 0440 /etc/sudoers.d/$USER
+
+RUN groupadd -r kvm && gpasswd -a $USER kvm
 
 USER $USER
 WORKDIR /home/$USER
@@ -47,7 +54,10 @@ RUN mkdir -p $ANDROID_SDK_ROOT \
   && yes "y" | sdkmanager "platforms;android-$ANDROID_VERSION" \
   && yes "y" | sdkmanager "platform-tools" \
   && yes "y" | sdkmanager "emulator" \
-  && yes "y" | sdkmanager "system-images;android-$ANDROID_VERSION;google_apis_playstore;$ANDROID_ARCHITECTURE"
+  && yes "y" | sdkmanager "system-images;android-$ANDROID_VERSION;google_apis_playstore;$ANDROID_ARCHITECTURE" \
+  && sdkmanager --list \
+  && sdkmanager --update \
+  && sdkmanager --install "cmdline-tools;latest"
 
 # flutter
 RUN curl -o flutter.tar.xz $FLUTTER_URL \
@@ -58,7 +68,7 @@ RUN curl -o flutter.tar.xz $FLUTTER_URL \
   && flutter precache \
   && yes "y" | flutter doctor --android-licenses \
   && flutter doctor \
-  && flutter emulators --create \
+  && flutter emulators --create --name $FLUTTER_EMULATOR_NAME \
   && flutter update-packages
 
 COPY entrypoint.sh /usr/local/bin/

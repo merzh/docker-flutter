@@ -13,4 +13,6 @@ flutter run -d $FLUTTER_EMULATOR_NAME --observatory-port $FLUTTER_DEBUG_PORT
 
 /bin/bash /usr/local/bin/chown.sh
 
+/bin/bash
+
 exit
